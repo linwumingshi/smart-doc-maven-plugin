@@ -40,13 +40,7 @@ public class PostManMojo extends BaseDocsGeneratorMojo {
 
     @Override
     public void executeMojo(ApiConfig apiConfig, JavaProjectBuilder javaProjectBuilder) {
-        try {
-            PostmanJsonBuilder.buildPostmanCollection(apiConfig, javaProjectBuilder);
-        } catch (Throwable e) {
-            getLog().error(e);
-            if (apiConfig.isStrict()) {
-                throw new RuntimeException(e.getMessage());
-            }
-        }
+        executeSafely(apiConfig,
+            () -> PostmanJsonBuilder.buildPostmanCollection(apiConfig, javaProjectBuilder));
     }
 }

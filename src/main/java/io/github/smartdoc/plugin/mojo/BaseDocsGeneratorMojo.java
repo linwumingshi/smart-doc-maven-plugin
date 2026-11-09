@@ -22,6 +22,7 @@
  */
 package io.github.smartdoc.plugin.mojo;
 
+import io.github.smartdoc.exception.UnsupportedGoalFrameworkException;
 import io.github.smartdoc.helper.JavaProjectBuilderHelper;
 import io.github.smartdoc.model.ApiConfig;
 import io.github.smartdoc.plugin.constant.GlobalConstants;
@@ -113,6 +114,44 @@ public abstract class BaseDocsGeneratorMojo extends AbstractMojo {
 
     public abstract void executeMojo(ApiConfig apiConfig, JavaProjectBuilder javaProjectBuilder)
         throws MojoExecutionException, MojoFailureException;
+
+    /**
+     * Runs a docs generation action and decides whether a failure must break the build.
+     * <p>
+     * A framework/goal mismatch is a configuration error: retrying can never succeed and the
+     * goal silently produces no documentation, so it always fails the build. Any other
+     * failure keeps the historical behaviour and only fails when {@code isStrict} is set.
+     * @param apiConfig api configuration of the current goal
+     * @param action docs generation action to run
+     */
+    protected void executeSafely(ApiConfig apiConfig, MojoAction action) {
+        try {
+            action.run();
+        } catch (Throwable e) {
+            getLog().error(e);
+            // A JVM error leaves the build in an unknown state, so it can never be ignored.
+            if (e instanceof Error) {
+                throw (Error) e;
+            }
+            if (e instanceof UnsupportedGoalFrameworkException || apiConfig.isStrict()) {
+                throw new RuntimeException(e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * A docs generation action that may fail.
+     */
+    @FunctionalInterface
+    protected interface MojoAction {
+
+        /**
+         * Runs the action.
+         * @throws Exception when the docs generation fails
+         */
+        void run() throws Exception;
+
+    }
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
