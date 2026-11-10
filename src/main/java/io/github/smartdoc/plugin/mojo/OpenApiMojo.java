@@ -42,13 +42,6 @@ public class OpenApiMojo extends BaseDocsGeneratorMojo {
 
     @Override
     public void executeMojo(ApiConfig apiConfig, JavaProjectBuilder javaProjectBuilder) {
-        try {
-            OpenApiBuilder.buildOpenApi(apiConfig, javaProjectBuilder);
-        } catch (Throwable e) {
-            getLog().error(e);
-            if (apiConfig.isStrict()) {
-                throw new RuntimeException(e.getMessage());
-            }
-        }
+        executeSafely(apiConfig, () -> OpenApiBuilder.buildOpenApi(apiConfig, javaProjectBuilder));
     }
 }

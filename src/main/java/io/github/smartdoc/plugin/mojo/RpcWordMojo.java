@@ -40,13 +40,6 @@ public class RpcWordMojo extends BaseDocsGeneratorMojo {
 
     @Override
     public void executeMojo(ApiConfig apiConfig, JavaProjectBuilder javaProjectBuilder) {
-        try {
-            RpcWordDocBuilder.buildApiDoc(apiConfig, javaProjectBuilder);
-        } catch (Throwable e) {
-            getLog().error(e);
-            if (apiConfig.isStrict()) {
-                throw new RuntimeException(e.getMessage());
-            }
-        }
+        executeSafely(apiConfig, () -> RpcWordDocBuilder.buildApiDoc(apiConfig, javaProjectBuilder));
     }
 }

@@ -53,14 +53,7 @@ public class GenerateMojo extends BaseDocsGeneratorMojo {
 
     @Override
     public void executeMojo(ApiConfig apiConfig, JavaProjectBuilder javaProjectBuilder) {
-        try {
-            DocGenerator.generate(apiConfig, javaProjectBuilder, formats);
-        } catch (Throwable e) {
-            getLog().error(e);
-            if (apiConfig.isStrict()) {
-                throw new RuntimeException(e.getMessage());
-            }
-        }
+        executeSafely(apiConfig, () -> DocGenerator.generate(apiConfig, javaProjectBuilder, formats));
     }
 
 }

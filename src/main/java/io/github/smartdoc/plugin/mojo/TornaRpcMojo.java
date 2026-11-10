@@ -42,13 +42,6 @@ public class TornaRpcMojo extends BaseDocsGeneratorMojo {
 
     @Override
     public void executeMojo(ApiConfig apiConfig, JavaProjectBuilder javaProjectBuilder) {
-        try {
-            RpcTornaBuilder.buildApiDoc(apiConfig, javaProjectBuilder);
-        } catch (Throwable e) {
-            getLog().error(e);
-            if (apiConfig.isStrict()) {
-                throw new RuntimeException(e.getMessage());
-            }
-        }
+        executeSafely(apiConfig, () -> RpcTornaBuilder.buildApiDoc(apiConfig, javaProjectBuilder));
     }
 }

@@ -42,13 +42,6 @@ import org.apache.maven.plugins.annotations.ResolutionScope;
 public class SwaggerMojo extends BaseDocsGeneratorMojo {
     @Override
     public void executeMojo(ApiConfig apiConfig, JavaProjectBuilder javaProjectBuilder) {
-        try {
-            SwaggerBuilder.buildOpenApi(apiConfig, javaProjectBuilder);
-        } catch (Throwable e) {
-            getLog().error(e);
-            if (apiConfig.isStrict()) {
-                throw new RuntimeException(e.getMessage());
-            }
-        }
+        executeSafely(apiConfig, () -> SwaggerBuilder.buildOpenApi(apiConfig, javaProjectBuilder));
     }
 }
