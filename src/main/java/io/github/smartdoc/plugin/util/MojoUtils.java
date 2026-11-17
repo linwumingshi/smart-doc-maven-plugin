@@ -171,19 +171,23 @@ public class MojoUtils {
      */
     private static void addSourcePaths(MavenProject project, ProjectBuilder projectBuilder, MavenSession mavenSession, ApiConfig apiConfig,
                                        List<String> projectArtifacts, Log log) {
-        List<SourceCodePath> sourceCodePaths = new ArrayList<>();
         // key is module's artifact name, value is module's path
         Map<String, String> modules = new HashMap<>(40);
         buildModules(project, projectBuilder, mavenSession, modules, apiConfig.getCodePath(), log);
+        // Keep only the referenced dependency modules, preserving their iteration order.
+        Map<String, String> referencedModules = new LinkedHashMap<>();
         modules.forEach((key, modulePath) -> projectArtifacts.forEach(artifactName -> {
             if (artifactName.equals(key)) {
-                sourceCodePaths.add(SourceCodePath.builder().setPath(modulePath));
+                referencedModules.put(key, modulePath);
             }
         }));
-        sourceCodePaths.add(SourceCodePath.builder()
-                .setPath(project.getBasedir() + FILE_SEPARATOR + apiConfig.getCodePath()));
-        SourceCodePath[] codePaths = new SourceCodePath[sourceCodePaths.size()];
-        sourceCodePaths.toArray(codePaths);
+        // The user configured source paths are additive and must survive the codePath
+        // based derivation. Otherwise a project that also needs generated sources (for
+        // example target/generated-sources/annotations) cannot be documented together
+        // with its hand-written sources. See smart-doc-group/smart-doc#54.
+        List<SourceCodePath> sourceCodePaths = mergeSourceCodePaths(project.getBasedir(),
+                apiConfig.getCodePath(), apiConfig.getSourceCodePaths(), referencedModules.values());
+        SourceCodePath[] codePaths = sourceCodePaths.toArray(new SourceCodePath[0]);
         List<String> artifacts = new ArrayList<>();
         for (Map.Entry<String, String> module : modules.entrySet()) {
             String artifactName = module.getKey().split(":")[1];
@@ -194,6 +198,54 @@ public class MojoUtils {
                 .replaceAll("\\\\", "/").replaceAll("//", "/"));
 
         apiConfig.setSourceCodePaths(codePaths);
+    }
+
+    /**
+     * Merge the user configured source code paths with the paths derived from
+     * {@code codePath} for every referenced module and for the current project.
+     * <p>
+     * The user configured paths are additive and take precedence in ordering: relative
+     * entries are resolved against the project base directory so that they stay portable
+     * across machines and modules, and all entries are de-duplicated by their normalized
+     * absolute path. When no user path is configured the result is exactly the previous
+     * behaviour (codePath derived paths only), so the default automatic source detection
+     * stays intact.
+     * @param basedir project base directory
+     * @param codePath project source root, usually {@code src/main/java}
+     * @param userPaths user configured source code paths, may be null or empty
+     * @param modulePaths source paths derived from the referenced modules
+     * @return merged and de-duplicated source code path list
+     */
+    static List<SourceCodePath> mergeSourceCodePaths(File basedir, String codePath,
+            List<SourceCodePath> userPaths, Collection<String> modulePaths) {
+        // LinkedHashMap keeps the configured order and de-duplicates by absolute path.
+        Map<String, SourceCodePath> merged = new LinkedHashMap<>();
+        if (Objects.nonNull(userPaths)) {
+            for (SourceCodePath path : userPaths) {
+                if (Objects.isNull(path) || StringUtil.isEmpty(path.getPath())) {
+                    continue;
+                }
+                String userPath = path.getPath().replace("\\", "/");
+                File file = new File(userPath);
+                String absolutePath = file.isAbsolute() ? file.getAbsolutePath()
+                        : new File(basedir, userPath).getAbsolutePath();
+                merged.putIfAbsent(absolutePath,
+                        SourceCodePath.builder().setPath(absolutePath).setDesc(path.getDesc()));
+            }
+        }
+        if (Objects.nonNull(modulePaths)) {
+            for (String modulePath : modulePaths) {
+                if (StringUtil.isEmpty(modulePath)) {
+                    continue;
+                }
+                String absolutePath = new File(modulePath).getAbsolutePath();
+                merged.putIfAbsent(absolutePath, SourceCodePath.builder().setPath(modulePath));
+            }
+        }
+        String currentPath = basedir + FILE_SEPARATOR + codePath;
+        merged.putIfAbsent(new File(currentPath).getAbsolutePath(),
+                SourceCodePath.builder().setPath(currentPath));
+        return new ArrayList<>(merged.values());
     }
 
     /**
